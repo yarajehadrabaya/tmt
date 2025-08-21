@@ -15,7 +15,8 @@
 <h2>اختبار تتبّع المسار - MoCA</h2>
 <canvas id="drawCanvas"></canvas><br>
 <button onclick="resetCanvas()">🔄 إعادة</button>
-<button onclick="downloadAll()">⬇️ تنزيل الصورة + البيانات</button>
+<button onclick="downloadImage()">📷 حفظ الخط فقط</button>
+<button onclick="downloadData()">📄 حفظ بيانات (Resampled)</button>
 
 <script>
 let canvas = document.getElementById('drawCanvas');
@@ -167,9 +168,8 @@ function resample(points, step = 0.05) {
     return resampled;
 }
 
-// ⬇️ تنزيل صورة + JSON
-function downloadAll() {
-    // صورة الخط فقط
+// 🖼️ حفظ صورة الخط فقط (بخلفية شفافة)
+function downloadImage() {
     let tempCanvas = document.createElement('canvas');
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
@@ -190,13 +190,15 @@ function downloadAll() {
 
     tempCtx.stroke();
 
-    let linkImg = document.createElement('a');
-    linkImg.download = `drawing_${Date.now()}.png`;
-    linkImg.href = tempCanvas.toDataURL("image/png");
-    linkImg.click();
+    let link = document.createElement('a');
+    link.download = `drawing_${Date.now()}.png`;
+    link.href = tempCanvas.toDataURL("image/png");
+    link.click();
+}
 
-    // JSON
-    let resampledPoints = resample(points, 0.05);
+// 📄 حفظ البيانات كـ JSON بعد resampling
+function downloadData() {
+    let resampledPoints = resample(points, 0.05); // كل 0.05 ثانية
     let data = {
         screenWidth: screenWidth,
         screenHeight: screenHeight,
@@ -205,10 +207,10 @@ function downloadAll() {
         points: resampledPoints
     };
     let blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
-    let linkJson = document.createElement('a');
-    linkJson.href = URL.createObjectURL(blob);
-    linkJson.download = `trial_${Date.now()}_data.json`;
-    linkJson.click();
+    let link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `trial_${Date.now()}_data.json`;
+    link.click();
 }
 </script>
 </body>
