@@ -15,23 +15,19 @@
 <h2>اختبار تتبّع المسار - MoCA</h2>
 <canvas id="drawCanvas"></canvas><br>
 <button onclick="resetCanvas()">🔄 إعادة</button>
-<button onclick="downloadImage()">📷 حفظ الخط فقط</button>
-<button onclick="downloadData()">📄 حفظ بيانات</button>
+<button onclick="downloadAll()">⬇️ تنزيل الصورة + البيانات</button>
 
 <script>
 let canvas = document.getElementById('drawCanvas');
 let ctx = canvas.getContext('2d');
 
-// صورة الخلفية
 let bgImage = new Image();
-bgImage.src = "moca.png"; // غيّرها إلى moca.png لو عندك صورة خاصة
+bgImage.src = "moca.png"; // صورة الخلفية
 
-// أبعاد الجهاز
 let screenWidth = window.innerWidth;
 let screenHeight = window.innerHeight;
 let canvasWidth, canvasHeight;
 
-// ضبط حجم الكانفاس حسب الجهاز
 function resizeCanvas() {
     let ratio = bgImage.width / bgImage.height || (4/3);
     let maxWidth = screenWidth * 0.95;
@@ -62,6 +58,7 @@ window.addEventListener('resize', resizeCanvas);
 let drawing = false;
 let startTime = null;
 let points = [];
+let lastPoint = null;
 
 function getRelativeCoords(evt) {
     let rect = canvas.getBoundingClientRect();
@@ -97,20 +94,23 @@ function endDraw() {
 }
 
 function savePoint(coords) {
-    let t = (Date.now() - startTime) / 1000;
-    points.push({
+    let t = (Date.now() - startTime) / 1000.0; // ثواني
+    let p = {
         x: coords.x,
         y: coords.y,
         nx: coords.nx,
         ny: coords.ny,
         t: t
-    });
+    };
+    points.push(p);
+    lastPoint = p;
 }
 
 function resetCanvas() {
     drawBackground();
     points = [];
     startTime = null;
+    lastPoint = null;
 }
 
 // أحداث الماوس
@@ -126,8 +126,50 @@ canvas.addEventListener('touchmove', e => {
 });
 canvas.addEventListener('touchend', endDraw);
 
-// حفظ صورة الخط فقط بدون الخلفية
-function downloadImage() {
+// 🧩 دالة Resampling كل 0.05 ثانية (مع تثبيت آخر نقطة)
+function resample(points, step = 0.05) {
+    if (points.length < 2) return points;
+
+    let resampled = [];
+    let startT = points[0].t;
+    let endT = points[points.length - 1].t;
+    let targetT = startT;
+
+    let i = 0;
+    while (targetT <= endT) {
+        while (i < points.length - 1 && points[i+1].t < targetT) {
+            i++;
+        }
+
+        let p1 = points[i];
+        let p2 = points[Math.min(i+1, points.length-1)];
+
+        let ratio = (targetT - p1.t) / (p2.t - p1.t || 1);
+        let x = p1.x + ratio * (p2.x - p1.x);
+        let y = p1.y + ratio * (p2.y - p1.y);
+        let nx = x / canvas.width;
+        let ny = y / canvas.height;
+
+        resampled.push({x, y, nx, ny, t: targetT});
+        targetT += step;
+    }
+
+    // إضافة آخر نقطة مرة واحدة فقط لتثبيت القيم
+    let last = points[points.length - 1];
+    resampled.push({
+        x: last.x,
+        y: last.y,
+        nx: last.nx,
+        ny: last.ny,
+        t: endT
+    });
+
+    return resampled;
+}
+
+// ⬇️ تنزيل صورة + JSON
+function downloadAll() {
+    // صورة الخط فقط
     let tempCanvas = document.createElement('canvas');
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
@@ -148,24 +190,26 @@ function downloadImage() {
 
     tempCtx.stroke();
 
-    let link = document.createElement('a');
-    link.download = 'drawing_only.png';
-    link.href = tempCanvas.toDataURL();
-    link.click();
-}
-// حفظ البيانات
-function downloadData() {
+    let linkImg = document.createElement('a');
+    linkImg.download = `drawing_${Date.now()}.png`;
+    linkImg.href = tempCanvas.toDataURL("image/png");
+    linkImg.click();
+
+    // JSON
+    let resampledPoints = resample(points, 0.05);
     let data = {
         screenWidth: screenWidth,
         screenHeight: screenHeight,
         canvasWidth: canvasWidth,
         canvasHeight: canvasHeight,
-        points: points
+        points: resampledPoints
     };
     let blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
-    let link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'drawing_data.json';
-    link.click();
+    let linkJson = document.createElement('a');
+    linkJson.href = URL.createObjectURL(blob);
+    linkJson.download = `trial_${Date.now()}_data.json`;
+    linkJson.click();
 }
 </script>
+</body>
+</html>
